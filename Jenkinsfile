@@ -28,6 +28,11 @@ pipeline {
         sh 'npm run lint'
       }
     }
+    stage('Test') {
+      steps {
+        sh 'npm test -- --coverage'
+      }
+    }
     stage('DockerBuild Snapshot') {
       steps {
         script {
