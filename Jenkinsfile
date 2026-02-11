@@ -1,5 +1,8 @@
 pipeline {
   agent any
+  parameters {
+    booleanParam(name: 'RUN_DB_TESTS', defaultValue: false, description: 'Run DB integration tests (requires reachable DB)')
+  }
   environment {
     AWS_REGION = 'us-east-1'
     ECR_SNAPSHOT = '147997138755.dkr.ecr.us-east-1.amazonaws.com/snapshot/patientservice'
@@ -23,7 +26,7 @@ pipeline {
         }
         stage('UnitTest') {
           steps {
-            sh 'npm test -- --coverage'
+            sh "RUN_DB_TESTS=${params.RUN_DB_TESTS} npm test -- --coverage"
           }
         }
       }
@@ -64,6 +67,8 @@ pipeline {
           withCredentials([aws(credentialsId: 'AWS Credentials')]) {
             sh "docker tag ${ECR_SNAPSHOT}:${env.BUILD_NUMBER} ${ECR_RELEASE}:release-${env.BUILD_NUMBER}"
             sh "docker push ${ECR_RELEASE}:release-${env.BUILD_NUMBER}"
+            sh "docker tag ${ECR_SNAPSHOT}:${env.BUILD_NUMBER} ${ECR_RELEASE}:latest"
+            sh "docker push ${ECR_RELEASE}:latest"
           }
         }
       }
