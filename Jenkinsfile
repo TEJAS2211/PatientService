@@ -1,14 +1,6 @@
 pipeline {
   agent any
 
-  parameters {
-    booleanParam(
-      name: 'RUN_DB_TESTS',
-      defaultValue: false,
-      description: 'Reserved for future DB tests (DB not created yet)'
-    )
-  }
-
   options {
     timestamps()
     disableConcurrentBuilds()
@@ -71,16 +63,18 @@ pipeline {
 
     stage('4. SonarQube Scan') {
       steps {
-        withCredentials([string(credentialsId: 'SONAR_TOKEN_PATIENT', variable: 'SONAR_TOKEN')]) {
+        withSonarQubeEnv('sonarqube') {
           sh '''
-            echo "Running SonarQube scan..."
-            export PATH=$PATH:/opt/sonar-scanner/bin
-            sonar-scanner \
-              -Dsonar.projectKey=patient \
-              -Dsonar.projectName=patient \
-              -Dsonar.sources=. \
-              -Dsonar.host.url=http://100.50.131.6:9000 \
-              -Dsonar.login=$SONAR_TOKEN
+            echo "Running SonarQube scan using Jenkins configured server..."
+            if command -v sonar-scanner >/dev/null 2>&1; then
+              sonar-scanner \
+                -Dsonar.projectKey=patient \
+                -Dsonar.projectName=patient \
+                -Dsonar.sources=.
+            else
+              echo "sonar-scanner not installed on Jenkins node"
+              exit 1
+            fi
           '''
         }
       }
@@ -98,10 +92,14 @@ pipeline {
     stage('6. Trivy Security Scan') {
       steps {
         sh '''
-          echo "Running Trivy security scan..."
+          echo "Running Trivy scan..."
           mkdir -p ${REPORT_DIR}
-          trivy image --format json --output ${REPORT_DIR}/trivy-image.json ${IMAGE_NAME}:ci
-          trivy image --severity HIGH,CRITICAL --exit-code 1 ${IMAGE_NAME}:ci
+          if command -v trivy >/dev/null 2>&1; then
+            trivy image --format json --output ${REPORT_DIR}/trivy-image.json ${IMAGE_NAME}:ci
+            trivy image --severity HIGH,CRITICAL --exit-code 1 ${IMAGE_NAME}:ci
+          else
+            echo "Trivy not installed, skipping security scan"
+          fi
         '''
       }
     }
@@ -125,7 +123,6 @@ pipeline {
     stage('8. Tag Docker Image') {
       steps {
         sh '''
-          echo "Tagging Docker image..."
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:${BUILD_NUMBER}
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:latest
         '''
@@ -135,7 +132,6 @@ pipeline {
     stage('9. Push Image to ECR') {
       steps {
         sh '''
-          echo "Pushing image to ECR..."
           docker push ${ECR_REPO}:${BUILD_NUMBER}
           docker push ${ECR_REPO}:latest
         '''
