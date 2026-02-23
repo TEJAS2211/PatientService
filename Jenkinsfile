@@ -17,11 +17,10 @@ pipeline {
   }
 
   environment {
-    AWS_REGION   = 'us-east-1'
-    SERVICE_NAME = 'patient'
-    IMAGE_NAME   = 'patient'
-    ECR_REPO     = '839690183795.dkr.ecr.us-east-1.amazonaws.com/patient'
-    REPORT_DIR   = 'reports'
+    AWS_REGION = 'us-east-1'
+    IMAGE_NAME = 'patient'
+    ECR_REPO   = '839690183795.dkr.ecr.us-east-1.amazonaws.com/patient'
+    REPORT_DIR = 'reports'
   }
 
   stages {
@@ -99,7 +98,7 @@ pipeline {
     stage('6. Trivy Security Scan') {
       steps {
         sh '''
-          echo "Running Trivy scan..."
+          echo "Running Trivy security scan..."
           mkdir -p ${REPORT_DIR}
           trivy image --format json --output ${REPORT_DIR}/trivy-image.json ${IMAGE_NAME}:ci
           trivy image --severity HIGH,CRITICAL --exit-code 1 ${IMAGE_NAME}:ci
@@ -126,6 +125,7 @@ pipeline {
     stage('8. Tag Docker Image') {
       steps {
         sh '''
+          echo "Tagging Docker image..."
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:${BUILD_NUMBER}
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:latest
         '''
@@ -135,6 +135,7 @@ pipeline {
     stage('9. Push Image to ECR') {
       steps {
         sh '''
+          echo "Pushing image to ECR..."
           docker push ${ECR_REPO}:${BUILD_NUMBER}
           docker push ${ECR_REPO}:latest
         '''
