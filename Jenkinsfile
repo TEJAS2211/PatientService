@@ -11,7 +11,6 @@ pipeline {
 
   options {
     timestamps()
-    ansiColor('xterm')
     disableConcurrentBuilds()
     buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '30'))
     timeout(time: 45, unit: 'MINUTES')
@@ -52,7 +51,7 @@ pipeline {
               if npm run | grep -q lint; then
                 npm run lint
               else
-                echo "No lint script found, skipping lint stage"
+                echo "No lint script found, skipping lint"
               fi
             '''
           }
@@ -97,10 +96,10 @@ pipeline {
       }
     }
 
-    stage('6. Trivy Image Security Scan (Aqua)') {
+    stage('6. Trivy Security Scan') {
       steps {
         sh '''
-          echo "Running Trivy security scan..."
+          echo "Running Trivy scan..."
           mkdir -p ${REPORT_DIR}
           trivy image --format json --output ${REPORT_DIR}/trivy-image.json ${IMAGE_NAME}:ci
           trivy image --severity HIGH,CRITICAL --exit-code 1 ${IMAGE_NAME}:ci
@@ -127,7 +126,6 @@ pipeline {
     stage('8. Tag Docker Image') {
       steps {
         sh '''
-          echo "Tagging Docker image..."
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:${BUILD_NUMBER}
           docker tag ${IMAGE_NAME}:ci ${ECR_REPO}:latest
         '''
@@ -137,7 +135,6 @@ pipeline {
     stage('9. Push Image to ECR') {
       steps {
         sh '''
-          echo "Pushing image to ECR..."
           docker push ${ECR_REPO}:${BUILD_NUMBER}
           docker push ${ECR_REPO}:latest
         '''
@@ -147,14 +144,8 @@ pipeline {
 
   post {
     always {
-      echo "Archiving security reports..."
       archiveArtifacts artifacts: 'reports/**/*', allowEmptyArchive: true, fingerprint: true
-
-      sh '''
-        echo "Cleaning up local Docker images..."
-        docker image rm -f ${IMAGE_NAME}:ci ${ECR_REPO}:${BUILD_NUMBER} ${ECR_REPO}:latest || true
-      '''
-
+      sh 'docker image rm -f ${IMAGE_NAME}:ci ${ECR_REPO}:${BUILD_NUMBER} ${ECR_REPO}:latest || true'
       cleanWs()
     }
   }
